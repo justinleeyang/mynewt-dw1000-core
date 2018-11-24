@@ -37,6 +37,7 @@
 #include <hal/hal_spi.h>
 #include <hal/hal_gpio.h>
 #include <stats/stats.h>
+#include "bsp/bsp.h"
 
 #include <dw1000/dw1000_regs.h>
 #include <dw1000/dw1000_dev.h>
@@ -510,7 +511,10 @@ inline void dw1000_write_tx_fctrl(struct _dw1000_dev_instance_t * inst, uint16_t
  */
 struct _dw1000_dev_status_t dw1000_start_tx(struct _dw1000_dev_instance_t * inst)
 {
-
+	//DIAGMSG("mac:switch tx ...\r\n");
+	hal_gpio_write(DW1000_TX_EN_PIN,1);
+	hal_gpio_write(DW1000_RX_EN_PIN,0);
+	
     os_error_t err = os_sem_pend(&inst->sem,  OS_TIMEOUT_NEVER); // Released by a SYS_STATUS_TXFRS event
     assert(err == OS_OK);
 
@@ -1191,6 +1195,7 @@ dw1000_mac_get_interface(dw1000_dev_instance_t * inst, dw1000_extension_id_t id)
 static void 
 dw1000_interrupt_ev_cb(struct os_event *ev)
 {
+	
     dw1000_dev_instance_t * inst = ev->ev_arg;
     inst->sys_status = dw1000_read_reg(inst, SYS_STATUS_ID, 0, sizeof(uint32_t)); // Read status register low 32bits
     
@@ -1256,6 +1261,11 @@ dw1000_interrupt_ev_cb(struct os_event *ev)
 
     // Handle TX confirmation event
     if(inst->sys_status & SYS_STATUS_TXFRS){
+	
+		//DIAGMSG("mac:switch rx\r\n");
+		hal_gpio_write(DW1000_TX_EN_PIN,0);
+		hal_gpio_write(DW1000_RX_EN_PIN,1);
+		
         STATS_INC(g_stat, TFG_cnt);
         dw1000_write_reg(inst, SYS_STATUS_ID, 0, SYS_STATUS_ALL_TX, sizeof(uint32_t)); // Clear TX event bits
         // In the case where this TXFRS interrupt is due to the automatic transmission of an ACK solicited by a response (with ACK request bit set)
